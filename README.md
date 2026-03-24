@@ -1,33 +1,104 @@
 # AIJob TON Escrow
 
-Smart contract package for the `Secure Deal` flow in `AIJob`.
+TON escrow smart contract package for the `Secure Deal` flow inside `AIJob`.
 
-This repository contains the on-chain escrow contract, TypeScript wrappers, deployment scripts, and tests used to secure one AIJob task with one TON contract.
+`AIJob` is a Telegram-first AI task workflow product. This repository contains the on-chain payment and settlement layer used when a task is created as a secure deal: one task, one executor, one escrow contract.
+
+## Elevator Pitch
+
+`AIJob TON Escrow` combines:
+
+- task coordination and communication in `AIJob`
+- AI-assisted dispute review off-chain
+- final payment execution on `TON`
+
+The goal is simple: keep deal terms explicit, lock funds on-chain, and give the platform a reliable settlement mechanism when work is completed or disputed.
+
+## Why This Exists
+
+Freelance and task-based work often breaks down at the payment stage:
+
+- the customer wants delivery guarantees
+- the executor wants funding guarantees
+- disputes are messy because evidence lives in chats, files, and task history
+
+This repository solves the payment layer of that problem. The contract keeps funds and enforces settlement rules. The product layer handles communication, AI analysis, moderation, and UX.
 
 ## Current Status
 
-- Public contract line: `V1`
-- Current implementation: hardened second-iteration state machine inside the `V1` contract line
-- Language: `Tolk`
-- Tooling: `@ton/blueprint`, `@ton/core`, `Jest`
+- public contract line: `V1`
+- current implementation: hardened second-iteration state machine inside the `V1` contract line
+- language: `Tolk`
+- tooling: `@ton/blueprint`, `@ton/core`, `Jest`
+- live validation: confirmed on `TON testnet`
 
-## What The Contract Does
+## What The Current Contract Supports
 
-- locks the customer deposit on-chain
-- stores customer, executor, platform arbiter, and fee wallet addresses
-- tracks funding, delivery, dispute, and settlement states
-- supports happy-path completion
-- supports platform refund, release, and split resolution
-- keeps settlement metadata in getters for UI and audit
+- customer deposit locking
+- executor delivery confirmation
+- customer completion confirmation
+- dispute opening
+- platform release
+- platform refund
+- platform split resolution
+- delivery timeout refund
+- review timeout completion
+- settlement metadata in getters for UI and audit
 
-## Product Model
+## Product Assumptions
 
 - one task = one escrow contract
 - customer always funds the deal
 - executor is selected at task creation time
-- deal amount is immutable after secure deal creation
-- platform fee is a separate amount
-- dispute analysis can happen off-chain, but the final fund movement is executed on-chain by the platform arbiter
+- deal terms are immutable after secure deal creation
+- platform fee is stored separately from the executor reward
+- AI can recommend a dispute outcome off-chain, but the final fund movement is executed by the platform arbiter on-chain
+
+## How The Flow Works
+
+1. A task is created in `AIJob` as a secure deal.
+2. The customer funds the contract.
+3. The executor marks the task as delivered.
+4. The customer either confirms completion or opens a dispute.
+5. If there is a dispute, the platform resolves it on-chain with:
+   - `release`
+   - `refund`
+   - `split`
+
+## What Lives On-Chain vs Off-Chain
+
+On-chain:
+
+- locked funds
+- participant addresses
+- deadlines
+- state transitions
+- final settlement
+
+Off-chain:
+
+- task text
+- chat history
+- attachments and evidence
+- AI dispute analysis
+- manual moderation workflow
+- product notifications and UI
+
+More detail:
+
+- `contracts/docs/OFFCHAIN_BOUNDARY.md`
+
+## Verified On Testnet
+
+This repository already includes real testnet validation for:
+
+- `dispute -> split resolution`
+- `happy path: deposit -> delivered -> confirmCompletion`
+- role separation for `customer`, `executor`, `platformArbiter`, and `feeWallet`
+
+Explorer-linked report:
+
+- `testnet/VALIDATION.md`
 
 ## Repository Structure
 
@@ -37,7 +108,7 @@ This repository contains the on-chain escrow contract, TypeScript wrappers, depl
 - `contracts/TESTNET_DEPLOY.md` - testnet deployment notes
 - `wrappers/` - TypeScript wrappers and compile entrypoint
 - `scripts/` - deployment script
-- `tests/` - sandbox tests
+- `tests/` - sandbox coverage for core flows
 - `testnet/VALIDATION.md` - live testnet smoke-test report
 
 ## Quick Start
@@ -74,26 +145,14 @@ or:
 npm run deploy:testnet -- --mnemonic
 ```
 
-See also:
+Deployment and validation references:
 
 - `contracts/TESTNET_DEPLOY.md`
 - `testnet/VALIDATION.md`
 
-## Verified On Testnet
-
-The repository includes live validation for:
-
-- `dispute -> split resolution`
-- `happy path: deposit -> delivered -> confirmCompletion`
-- separate `customer`, `executor`, `platformArbiter`, and `feeWallet`
-
-Explorer-linked report:
-
-- `testnet/VALIDATION.md`
-
 ## Integration Notes For AIJob / Lovable
 
-The contract should not be used directly from a public frontend as the main source of truth.
+This contract should not be treated as the main product backend and should not hold business logic that belongs to the app layer.
 
 Recommended architecture:
 
@@ -106,9 +165,11 @@ Important:
 
 - keep `platformArbiter` and `feeWallet` as different addresses
 - do not store private keys in frontend code
-- treat the AI dispute agent as an off-chain recommender, not as the on-chain arbiter
+- keep AI arbitration off-chain
+- use the contract as a deterministic settlement engine, not as a chat or moderation system
 
-## Notes
+## Scope
 
-- The contract repository is intentionally scoped to TON escrow logic.
-- Business logic, chats, AI analysis, and moderation workflows belong to the off-chain application layer.
+This repository is intentionally scoped to TON escrow logic only.
+
+Business logic, chats, AI analysis, moderation workflows, and the main `AIJob` product experience belong to the off-chain application layer.
